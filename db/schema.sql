@@ -46,6 +46,30 @@ create table if not exists students (
 );
 
 -- =====================================================================
+-- STUDENT REGISTRATION REQUESTS (public requests reviewed by admin)
+-- =====================================================================
+create table if not exists student_registration_requests (
+  id                  uuid primary key default gen_random_uuid(),
+  username            text not null,
+  email               text,
+  password_hash       text not null,
+  full_name           text not null,
+  date_of_birth       date,
+  gender              text,
+  parent_name         text,
+  parent_contact      text,
+  contact_number      text,
+  blood_group         text,
+  emergency_contact   text,
+  joining_date        date,
+  status              text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by         uuid references users(id) on delete set null,
+  reviewed_at         timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+
+-- =====================================================================
 -- PROGRAMS (Silambam, Karate, Yoga, Skating, Archery, Hindi)
 -- =====================================================================
 create table if not exists programs (
@@ -255,6 +279,7 @@ on conflict (key) do nothing;
 -- INDEXES
 -- =====================================================================
 create index if not exists idx_students_status on students(status);
+create index if not exists idx_student_registration_requests_status on student_registration_requests(status);
 create index if not exists idx_masters_order on masters(display_order);
 create index if not exists idx_gallery_order on gallery(display_order);
 create index if not exists idx_gallery_category on gallery(category);
@@ -282,7 +307,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['users','students','programs','student_programs','masters',
-    'achievements','gallery','announcements','events','testimonials','faqs','fees']
+    'student_registration_requests','achievements','gallery','announcements','events',
+    'testimonials','faqs','fees']
   loop
     execute format('drop trigger if exists trg_updated_at on %I;', t);
     execute format('create trigger trg_updated_at before update on %I

@@ -4,8 +4,12 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 
 // Student self-service (must come before /:id to avoid collision)
 router.get('/me/profile', requireAuth, requireRole('student'), ctrl.getMyProfile);
+router.post('/register', ctrl.registerStudentRequest);
 
 // Admin management
+router.get('/requests', requireAuth, requireRole('admin'), ctrl.listRegistrationRequests);
+router.post('/requests/:id/approve', requireAuth, requireRole('admin'), ctrl.approveRegistrationRequest);
+router.post('/requests/:id/reject', requireAuth, requireRole('admin'), ctrl.rejectRegistrationRequest);
 router.get('/', requireAuth, requireRole('admin'), ctrl.listStudents);
 router.get('/:id', requireAuth, requireRole('admin'), ctrl.getStudent);
 router.post('/', requireAuth, requireRole('admin'), ctrl.createStudent);
