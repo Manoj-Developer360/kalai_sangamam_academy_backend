@@ -19,7 +19,6 @@ const getOverview = asyncHandler(async (req, res) => {
     upcomingEvents,
     pendingFees,
     galleryItems,
-    announcements,
   ] = await Promise.all([
     count('students'),
     count('students', { status: 'active' }),
@@ -27,7 +26,6 @@ const getOverview = asyncHandler(async (req, res) => {
     count('events', { status: 'active' }),
     count('fees', { status: 'pending' }),
     count('gallery', { status: 'active' }),
-    count('announcements', { status: 'active' }),
   ]);
 
   sendResponse(res, 200, {
@@ -37,7 +35,6 @@ const getOverview = asyncHandler(async (req, res) => {
     upcomingEvents: upcomingEvents.count || 0,
     pendingFees: pendingFees.count || 0,
     galleryItems: galleryItems.count || 0,
-    announcements: announcements.count || 0,
   });
 });
 

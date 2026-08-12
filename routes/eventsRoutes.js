@@ -3,6 +3,7 @@ const ctrl = require('../controllers/eventsController');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 router.get('/', ctrl.listPublic);
+router.get('/hero', ctrl.getHeroEvent);
 router.get('/admin', requireAuth, requireRole('admin'), ctrl.listAdmin);
 router.post('/', requireAuth, requireRole('admin'), ctrl.createEvent);
 router.put('/:id', requireAuth, requireRole('admin'), ctrl.updateEvent);

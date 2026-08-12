@@ -3,6 +3,20 @@ const asyncHandler = require('../utils/asyncHandler');
 const sendResponse = require('../utils/sendResponse');
 const ApiError = require('../utils/ApiError');
 
+const normalizeEventPayload = (payload = {}) => ({
+  ...payload,
+  ...(payload.show_on_hero !== undefined
+    ? { show_on_hero: payload.show_on_hero === true || payload.show_on_hero === 'true' }
+    : {}),
+});
+
+const clearOtherHeroEvents = async (eventId) => {
+  let query = supabase.from('events').update({ show_on_hero: false }).eq('show_on_hero', true);
+  if (eventId) query = query.neq('id', eventId);
+  const { error } = await query;
+  if (error) throw ApiError.internal(error.message);
+};
+
 // GET /api/events (public) — only active, upcoming-facing events
 const listPublic = asyncHandler(async (req, res) => {
   const { data, error } = await supabase
@@ -14,6 +28,18 @@ const listPublic = asyncHandler(async (req, res) => {
   sendResponse(res, 200, data);
 });
 
+const getHeroEvent = asyncHandler(async (req, res) => {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('status', 'active')
+    .eq('show_on_hero', true)
+    .order('event_date', { ascending: true })
+    .limit(1);
+  if (error) throw ApiError.internal(error.message);
+  sendResponse(res, 200, data?.[0] || null);
+});
+
 // GET /api/events/admin (admin) — everything including archived
 const listAdmin = asyncHandler(async (req, res) => {
   const { data, error } = await supabase.from('events').select('*').order('event_date', { ascending: false });
@@ -22,16 +48,19 @@ const listAdmin = asyncHandler(async (req, res) => {
 });
 
 const createEvent = asyncHandler(async (req, res) => {
-  const payload = { ...req.body };
+  const payload = normalizeEventPayload(req.body);
   if (!payload.title || !payload.event_date) throw ApiError.badRequest('title and event_date are required');
   const { data, error } = await supabase.from('events').insert(payload).select().single();
   if (error) throw ApiError.badRequest(error.message);
+  if (data.show_on_hero) await clearOtherHeroEvents(data.id);
   sendResponse(res, 201, data, 'Event created');
 });
 
 const updateEvent = asyncHandler(async (req, res) => {
-  const { data, error } = await supabase.from('events').update(req.body).eq('id', req.params.id).select().single();
+  const payload = normalizeEventPayload(req.body);
+  const { data, error } = await supabase.from('events').update(payload).eq('id', req.params.id).select().single();
   if (error || !data) throw ApiError.notFound('Event not found');
+  if (data.show_on_hero) await clearOtherHeroEvents(data.id);
   sendResponse(res, 200, data, 'Event updated');
 });
 
@@ -66,4 +95,4 @@ const deleteEvent = asyncHandler(async (req, res) => {
   sendResponse(res, 200, { id: req.params.id }, 'Event permanently deleted');
 });
 
-module.exports = { listPublic, listAdmin, createEvent, updateEvent, closeRegistration, archiveEvent, deleteEvent };
+module.exports = { listPublic, getHeroEvent, listAdmin, createEvent, updateEvent, closeRegistration, archiveEvent, deleteEvent };

@@ -190,11 +190,14 @@ create table if not exists events (
   registration_link     text,
   qr_code_url           text,
   contact_info          text,
+  show_on_hero          boolean not null default false,
   status                text not null default 'active' check (status in ('active', 'inactive', 'archived')),
   archived_at           timestamptz,
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );
+
+alter table events add column if not exists show_on_hero boolean not null default false;
 
 -- =====================================================================
 -- TESTIMONIALS
@@ -272,8 +275,12 @@ insert into settings (key, value) values
 on conflict (key) do nothing;
 
 insert into settings (key, value) values
-  ('site_info', '{"academy_name": "Kalai Sangamam", "tagline": "", "address": "", "phone": "", "whatsapp": "", "email": "", "facebook": "", "instagram": "", "youtube": ""}')
+  ('site_info', '{"academy_name": "Kalai Sangamam", "tagline": "", "flash_news": "", "address": "", "phone": "", "whatsapp": "", "email": "", "facebook": "", "instagram": "", "youtube": ""}')
 on conflict (key) do nothing;
+
+update settings
+set value = jsonb_set(value, '{flash_news}', '""'::jsonb, true)
+where key = 'site_info' and (value->>'flash_news') is null;
 
 -- =====================================================================
 -- INDEXES
