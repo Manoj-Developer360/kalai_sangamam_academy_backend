@@ -76,6 +76,7 @@ create table if not exists programs (
   id                uuid primary key default gen_random_uuid(),
   slug              text not null unique,
   name              text not null,
+  tagline           text,
   introduction      text,
   benefits          text[],            -- array of bullet points
   training_details  text,
@@ -86,6 +87,8 @@ create table if not exists programs (
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
+
+alter table programs add column if not exists tagline text;
 
 -- =====================================================================
 -- STUDENT <-> PROGRAM ENROLLMENT (student's current program/level)
