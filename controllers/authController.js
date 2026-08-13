@@ -5,6 +5,20 @@ const sendResponse = require('../utils/sendResponse');
 const ApiError = require('../utils/ApiError');
 const { signToken } = require('../utils/jwt');
 
+// The student dashboard needs the enrolment records as well as the base
+// student row.  Keep this query shared by login and session restoration so
+// both paths expose the same complete profile.
+const getStudentProfile = async (userId) => {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*, student_programs(*, programs(name, slug))')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) throw ApiError.notFound('Student profile not found');
+  return data;
+};
+
 // POST /api/auth/login  { username, password }
 // Works for both admin and student — role comes from the users table.
 const login = asyncHandler(async (req, res) => {
@@ -27,12 +41,7 @@ const login = asyncHandler(async (req, res) => {
 
   let profile = null;
   if (user.role === 'student') {
-    const { data: student } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    profile = student;
+    profile = await getStudentProfile(user.id);
   }
 
   await supabase.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
@@ -57,12 +66,7 @@ const me = asyncHandler(async (req, res) => {
 
   let profile = null;
   if (user.role === 'student') {
-    const { data: student } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    profile = student;
+    profile = await getStudentProfile(user.id);
   }
 
   sendResponse(res, 200, { user, profile });

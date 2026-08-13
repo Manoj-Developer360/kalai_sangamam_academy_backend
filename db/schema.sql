@@ -39,11 +39,19 @@ create table if not exists students (
   blood_group         text,
   emergency_contact   text,
   joining_date        date not null default current_date,
+  program_ids         uuid[] default '{}',
+  program_names       text[] default '{}',
   status              text not null default 'active' check (status in ('active', 'inactive')),
   notes               text,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );
+
+alter table students
+  add column if not exists program_ids uuid[] default '{}';
+
+alter table students
+  add column if not exists program_names text[] default '{}';
 
 -- =====================================================================
 -- STUDENT REGISTRATION REQUESTS (public requests reviewed by admin)
@@ -68,6 +76,17 @@ create table if not exists student_registration_requests (
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );
+
+-- Selected during public registration and assigned when the request is approved.
+alter table student_registration_requests
+  add column if not exists program_id uuid references programs(id) on delete set null;
+
+-- Multiple program enrollment support for students who join more than one course.
+alter table student_registration_requests
+  add column if not exists program_ids uuid[] default '{}';
+
+alter table student_registration_requests
+  add column if not exists program_names text[] default '{}';
 
 -- =====================================================================
 -- PROGRAMS (Silambam, Karate, Yoga, Skating, Archery, Hindi)
