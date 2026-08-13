@@ -6,13 +6,22 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,https://kalai-sangamam-academy-frontend.vercel.app')
-  .split(',')
-  .map((s) => s.trim());
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://kalai-sangamam-academy-frontend.vercel.app',
+  ...(process.env.CLIENT_URL || '').split(','),
+]
+  .map((s) => s.trim().replace(/\/$/, ''))
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin is not allowed by CORS'));
+    },
     credentials: true,
   })
 );
