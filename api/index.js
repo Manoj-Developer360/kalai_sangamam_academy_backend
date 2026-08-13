@@ -1,9 +1,3 @@
-require('dotenv').config();
-const app = require('../app');
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Kalai Sangamam API listening on port ${PORT}`);
-});
+// Vercel serverless function entry point. Do not call app.listen() here:
+// Vercel invokes this exported Express app for each request.
+module.exports = require('../app');

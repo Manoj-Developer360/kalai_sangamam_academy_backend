@@ -6,7 +6,7 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URL)
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,https://kalai-sangamam-academy-frontend.vercel.app')
   .split(',')
   .map((s) => s.trim());
 
