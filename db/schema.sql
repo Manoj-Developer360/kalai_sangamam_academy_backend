@@ -302,6 +302,18 @@ create table if not exists fees (
   unique (student_id, month)
 );
 
+-- Individual payments applied to one monthly fee record. A student can make
+-- several payments (for example, ₹500 + ₹500) against the same month.
+create table if not exists fee_payments (
+  id            uuid primary key default gen_random_uuid(),
+  fee_id        uuid not null references fees(id) on delete cascade,
+  amount        numeric(10,2) not null check (amount > 0),
+  payment_date  date not null default current_date,
+  payment_note  text,
+  received_by   uuid references users(id) on delete set null,
+  created_at    timestamptz not null default now()
+);
+
 -- =====================================================================
 -- SETTINGS (payment QR/number, site-wide config, key-value)
 -- =====================================================================
@@ -340,6 +352,7 @@ create index if not exists idx_events_status on events(status);
 create index if not exists idx_events_date on events(event_date);
 create index if not exists idx_attendance_student_date on attendance(student_id, date);
 create index if not exists idx_fees_student_month on fees(student_id, month);
+create index if not exists idx_fee_payments_fee_id on fee_payments(fee_id);
 create index if not exists idx_testimonials_order on testimonials(display_order);
 create index if not exists idx_faqs_order on faqs(display_order);
 
