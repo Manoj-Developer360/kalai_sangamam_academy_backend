@@ -77,6 +77,26 @@ create table if not exists student_registration_requests (
   updated_at          timestamptz not null default now()
 );
 
+-- =====================================================================
+-- CONTACT ENQUIRIES (public contact-page submissions, reviewed by admin)
+-- =====================================================================
+create table if not exists contact_enquiries (
+  id                uuid primary key default gen_random_uuid(),
+  enquiry_type      text not null check (enquiry_type in ('general', 'enrolment', 'event')),
+  name              text not null,
+  phone             text not null,
+  email             text,
+  subject           text,
+  game              text,
+  age               int,
+  preferred_branch  text,
+  event_name        text,
+  message           text,
+  status            text not null default 'new' check (status in ('new', 'read', 'closed')),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
 -- Selected during public registration and assigned when the request is approved.
 alter table student_registration_requests
   add column if not exists program_id uuid references programs(id) on delete set null;
@@ -309,6 +329,8 @@ where key = 'site_info' and (value->>'flash_news') is null;
 -- =====================================================================
 create index if not exists idx_students_status on students(status);
 create index if not exists idx_student_registration_requests_status on student_registration_requests(status);
+create index if not exists idx_contact_enquiries_created_at on contact_enquiries(created_at desc);
+create index if not exists idx_contact_enquiries_status on contact_enquiries(status);
 create index if not exists idx_masters_order on masters(display_order);
 create index if not exists idx_gallery_order on gallery(display_order);
 create index if not exists idx_gallery_category on gallery(category);
@@ -336,7 +358,7 @@ do $$
 declare t text;
 begin
   foreach t in array array['users','students','programs','student_programs','masters',
-    'student_registration_requests','achievements','gallery','announcements','events',
+    'student_registration_requests','contact_enquiries','achievements','gallery','announcements','events',
     'testimonials','faqs','fees']
   loop
     execute format('drop trigger if exists trg_updated_at on %I;', t);

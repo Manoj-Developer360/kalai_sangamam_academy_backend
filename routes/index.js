@@ -14,5 +14,6 @@ router.use('/attendance', require('./attendanceRoutes'));
 router.use('/fees', require('./feesRoutes'));
 router.use('/settings', require('./settingsRoutes'));
 router.use('/dashboard', require('./dashboardRoutes'));
+router.use('/contact-enquiries', require('./contactEnquiriesRoutes'));
 
 module.exports = router;
