@@ -53,16 +53,20 @@ const upsertFee = asyncHandler(async (req, res) => {
     .from('fees').select('*').eq('student_id', student_id).eq('month', month).maybeSingle();
   if (existingError) throw ApiError.badRequest(existingError.message);
 
-  const totalPaid = Number(existing?.paid_amount || 0) + receivedNow;
+  const existingFeeAmount = Number(existing?.fee_amount ?? amountDue);
+  const existingPaidAmount = Number(existing?.paid_amount || 0);
+  const remainingBalance = existingFeeAmount - existingPaidAmount;
+  if (receivedNow > remainingBalance) throw ApiError.badRequest('Payment exceeds remaining balance');
+  const totalPaid = existingPaidAmount + receivedNow;
   const today = new Date().toISOString().slice(0, 10);
   const { data: fee, error } = await supabase
     .from('fees')
     .upsert({
       student_id,
       month,
-      fee_amount: amountDue,
+      fee_amount: existingFeeAmount,
       paid_amount: totalPaid,
-      status: computeStatus(amountDue, totalPaid),
+      status: computeStatus(existingFeeAmount, totalPaid),
       payment_date: receivedNow > 0 ? (payment_date || today) : existing?.payment_date || null,
       payment_note: receivedNow > 0 ? (payment_note || null) : existing?.payment_note || null,
       updated_by: req.user.id,
@@ -83,6 +87,78 @@ const upsertFee = asyncHandler(async (req, res) => {
   }
 
   sendResponse(res, 200, (await withPayments([fee]))[0], receivedNow > 0 ? 'Payment added to the monthly fee record.' : 'Monthly fee record saved.');
+});
+
+const processFeeForStudent = async ({ studentId, month, amountDue, receivedNow, paymentDate, paymentNote, userId }) => {
+  const { data: existing, error: existingError } = await supabase
+    .from('fees').select('*').eq('student_id', studentId).eq('month', month).maybeSingle();
+  if (existingError) throw ApiError.badRequest(existingError.message);
+
+  const feeAmount = Number(existing?.fee_amount ?? amountDue);
+  const paidAmount = Number(existing?.paid_amount || 0);
+  const remainingBalance = feeAmount - paidAmount;
+  if (receivedNow > 0 && remainingBalance <= 0) return { outcome: 'skipped', reason: 'Already fully paid' };
+  if (receivedNow > remainingBalance) return { outcome: 'failed', reason: 'Payment exceeds remaining balance' };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const totalPaid = paidAmount + receivedNow;
+  const { data: fee, error } = await supabase.from('fees').upsert({
+    student_id: studentId,
+    month,
+    // Once created, a monthly fee amount remains the source of truth for its payment history.
+    fee_amount: feeAmount,
+    paid_amount: totalPaid,
+    status: computeStatus(feeAmount, totalPaid),
+    payment_date: receivedNow > 0 ? (paymentDate || today) : existing?.payment_date || null,
+    payment_note: receivedNow > 0 ? (paymentNote || null) : existing?.payment_note || null,
+    updated_by: userId,
+  }, { onConflict: 'student_id,month' }).select().single();
+  if (error) throw ApiError.badRequest(error.message);
+
+  if (receivedNow > 0) {
+    const { error: paymentError } = await supabase.from('fee_payments').insert({
+      fee_id: fee.id,
+      amount: receivedNow,
+      payment_date: paymentDate || today,
+      payment_note: paymentNote || null,
+      received_by: userId,
+    });
+    if (paymentError) throw ApiError.badRequest(paymentError.message);
+  }
+  return { outcome: 'updated', fee };
+};
+
+// POST /api/fees/bulk (admin) — process a monthly fee/payment independently for each student.
+const upsertFeesBulk = asyncHandler(async (req, res) => {
+  const { studentIds, month, monthlyFeeAmount, paymentReceivedNow, paymentDate, paymentNote } = req.body;
+  if (!Array.isArray(studentIds) || studentIds.length === 0 || !month || monthlyFeeAmount === undefined) {
+    throw ApiError.badRequest('studentIds, month and monthlyFeeAmount are required');
+  }
+  const amountDue = Number(monthlyFeeAmount);
+  const receivedNow = Number(paymentReceivedNow || 0);
+  if (!Number.isFinite(amountDue) || amountDue < 0) throw ApiError.badRequest('Monthly fee amount must be a valid non-negative number');
+  if (!Number.isFinite(receivedNow) || receivedNow < 0) throw ApiError.badRequest('Payment amount must be a valid non-negative number');
+
+  const uniqueStudentIds = [...new Set(studentIds)];
+  const { data: students, error: studentsError } = await supabase
+    .from('students').select('id, full_name').in('id', uniqueStudentIds);
+  if (studentsError) throw ApiError.internal(studentsError.message);
+  if ((students || []).length !== uniqueStudentIds.length) throw ApiError.badRequest('One or more selected students do not exist');
+
+  const studentsById = new Map(students.map((student) => [student.id, student]));
+  const results = [];
+  for (const studentId of uniqueStudentIds) {
+    try {
+      const result = await processFeeForStudent({ studentId, month, amountDue, receivedNow, paymentDate, paymentNote, userId: req.user.id });
+      results.push({ studentId, studentName: studentsById.get(studentId).full_name, ...result });
+    } catch (error) {
+      results.push({ studentId, studentName: studentsById.get(studentId).full_name, outcome: 'failed', reason: error.message || 'Unable to save fee' });
+    }
+  }
+  const updated = results.filter((result) => result.outcome === 'updated');
+  const skipped = results.filter((result) => result.outcome === 'skipped');
+  const failed = results.filter((result) => result.outcome === 'failed');
+  sendResponse(res, 200, { updated, skipped, failed, results }, `Fee processing completed for ${uniqueStudentIds.length} students.`);
 });
 
 // PATCH /api/fees/:id/status (admin) — retained for existing clients.
@@ -107,4 +183,4 @@ const getMyFees = asyncHandler(async (req, res) => {
   sendResponse(res, 200, await withPayments(data || []));
 });
 
-module.exports = { listFees, upsertFee, updateFeeStatus, getMyFees };
+module.exports = { listFees, upsertFee, upsertFeesBulk, updateFeeStatus, getMyFees };

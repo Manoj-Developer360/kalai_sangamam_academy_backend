@@ -13,12 +13,30 @@ const markAttendance = asyncHandler(async (req, res) => {
     .from('attendance')
     .upsert(
       { student_id, program_id: program_id || null, date, status, marked_by: req.user.id },
-      { onConflict: 'student_id,program_id,date' }
+      { onConflict: 'student_id,date' }
     )
     .select()
     .single();
   if (error) throw ApiError.badRequest(error.message);
   sendResponse(res, 200, data, 'Attendance recorded');
+});
+
+// POST /api/attendance/bulk (admin) — updates one attendance record per selected student/date.
+const markAttendanceBulk = asyncHandler(async (req, res) => {
+  const { studentIds, date, status } = req.body;
+  if (!Array.isArray(studentIds) || studentIds.length === 0 || !date || !['present', 'absent', 'leave'].includes(status)) {
+    throw ApiError.badRequest('studentIds, date and a valid status are required');
+  }
+  const uniqueStudentIds = [...new Set(studentIds)];
+  const { data: students, error: studentsError } = await supabase.from('students').select('id').in('id', uniqueStudentIds);
+  if (studentsError) throw ApiError.internal(studentsError.message);
+  if ((students || []).length !== uniqueStudentIds.length) throw ApiError.badRequest('One or more selected students do not exist');
+
+  const { data, error } = await supabase.from('attendance')
+    .upsert(uniqueStudentIds.map((student_id) => ({ student_id, date, status, marked_by: req.user.id })), { onConflict: 'student_id,date' })
+    .select();
+  if (error) throw ApiError.badRequest(error.message);
+  sendResponse(res, 200, { updated: data || [], count: uniqueStudentIds.length }, `Attendance updated successfully for ${uniqueStudentIds.length} students.`);
 });
 
 // GET /api/attendance/student/:studentId (admin) — full history, optional ?month=2026-08
@@ -58,4 +76,4 @@ const getMyAttendance = asyncHandler(async (req, res) => {
   sendResponse(res, 200, { records: data, summary: { total, present, percentage } });
 });
 
-module.exports = { markAttendance, getStudentAttendance, getMyAttendance };
+module.exports = { markAttendance, markAttendanceBulk, getStudentAttendance, getMyAttendance };

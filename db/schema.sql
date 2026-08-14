@@ -280,7 +280,7 @@ create table if not exists attendance (
   status         text not null check (status in ('present', 'absent', 'leave')),
   marked_by      uuid references users(id),
   created_at     timestamptz not null default now(),
-  unique (student_id, program_id, date)
+  unique (student_id, date)
 );
 
 -- =====================================================================
