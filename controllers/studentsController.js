@@ -159,7 +159,7 @@ const createStudentFromPayload = async (body) => {
 // GET /api/students (admin) - optional ?search=&status=
 const listStudents = asyncHandler(async (req, res) => {
   const { search, status } = req.query;
-  let query = supabase.from('students').select('*, users:user_id(username, email, status)');
+  let query = supabase.from('students').select('*, users:user_id(username, email, status), student_programs(program_id, status)');
   if (status) query = query.eq('status', status);
   if (search) query = query.ilike('full_name', `%${search}%`);
   query = query.order('created_at', { ascending: false });
@@ -441,6 +441,21 @@ const deactivateStudent = asyncHandler(async (req, res) => {
   sendResponse(res, 200, data, 'Student deactivated successfully');
 });
 
+// DELETE /api/students/:id/permanent (admin) — deletes the linked user so the
+// schema's cascades atomically remove the student and all student-owned records.
+const deleteStudentPermanently = asyncHandler(async (req, res) => {
+  const { data: student, error: studentError } = await supabase
+    .from('students')
+    .select('id, user_id')
+    .eq('id', req.params.id)
+    .single();
+  if (studentError || !student) throw ApiError.notFound('Student not found');
+
+  const { error } = await supabase.from('users').delete().eq('id', student.user_id);
+  if (error) throw ApiError.badRequest(`Unable to permanently delete student: ${error.message}`);
+  sendResponse(res, 200, { id: student.id }, 'Student permanently deleted');
+});
+
 // POST /api/students/:id/programs (admin) — assign a program + level
 const assignProgram = asyncHandler(async (req, res) => {
   const { program_id, current_level } = req.body;
@@ -486,6 +501,7 @@ module.exports = {
   createStudent,
   updateStudent,
   deactivateStudent,
+  deleteStudentPermanently,
   assignProgram,
   getMyProfile,
 };

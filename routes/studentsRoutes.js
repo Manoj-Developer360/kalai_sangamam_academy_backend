@@ -14,6 +14,7 @@ router.get('/', requireAuth, requireRole('admin'), ctrl.listStudents);
 router.get('/:id', requireAuth, requireRole('admin'), ctrl.getStudent);
 router.post('/', requireAuth, requireRole('admin'), ctrl.createStudent);
 router.put('/:id', requireAuth, requireRole('admin'), ctrl.updateStudent);
+router.delete('/:id/permanent', requireAuth, requireRole('admin'), ctrl.deleteStudentPermanently);
 router.delete('/:id', requireAuth, requireRole('admin'), ctrl.deactivateStudent);
 router.post('/:id/programs', requireAuth, requireRole('admin'), ctrl.assignProgram);
 
