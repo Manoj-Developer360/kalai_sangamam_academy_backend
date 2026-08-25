@@ -152,6 +152,8 @@ create table if not exists masters (
   id               uuid primary key default gen_random_uuid(),
   name             text not null,
   role             text not null,            -- Founder / Director / Head Coach / Master
+  master_type      text not null default 'programme' check (master_type in ('leadership', 'programme')),
+  programme        text,
   specialization   text,                     -- e.g. Silambam, Karate
   experience_years int,
   achievements     text,
@@ -163,6 +165,21 @@ create table if not exists masters (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
+
+-- Kept here as well as in the dated migration so existing deployments can be
+-- upgraded without recreating the table.
+alter table masters add column if not exists master_type text;
+alter table masters add column if not exists programme text;
+update masters
+set master_type = case
+  when role ~* '(founder|director|head[[:space:]]*coach)' then 'leadership'
+  else 'programme'
+end
+where master_type is null;
+alter table masters alter column master_type set default 'programme';
+alter table masters alter column master_type set not null;
+alter table masters drop constraint if exists masters_master_type_check;
+alter table masters add constraint masters_master_type_check check (master_type in ('leadership', 'programme'));
 
 -- =====================================================================
 -- ACHIEVEMENTS (animated statistics + milestones)
