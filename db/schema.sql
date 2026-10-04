@@ -120,6 +120,7 @@ create table if not exists programs (
   benefits          text[],            -- array of bullet points
   training_details  text,
   training_schedule text,
+  schedule           jsonb not null default '[]'::jsonb,
   levels            text[],            -- e.g. ['Level 1','Level 2','Level 3'] or belt names
   display_order     int not null default 0,
   status            text not null default 'active' check (status in ('active', 'inactive')),
@@ -162,6 +163,21 @@ create table if not exists student_programs (
   updated_at     timestamptz not null default now(),
   unique (student_id, program_id)
 );
+
+-- =====================================================================
+-- STUDENT ACHIEVEMENTS (private student-specific results and awards)
+-- =====================================================================
+create table if not exists student_achievements (
+  id                uuid primary key default gen_random_uuid(),
+  student_id        uuid not null references students(id) on delete cascade,
+  program_id        uuid not null references programs(id) on delete restrict,
+  achievement_date  date not null,
+  title             text not null check (length(trim(title)) > 0),
+  achievement       text not null check (length(trim(achievement)) > 0),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+alter table student_achievements enable row level security;
 
 -- =====================================================================
 -- MASTERS (Founder / Director / Head Coach / Game-wise masters)
@@ -394,6 +410,8 @@ create index if not exists idx_achievements_order on achievements(display_order)
 create index if not exists idx_events_status on events(status);
 create index if not exists idx_events_date on events(event_date);
 create index if not exists idx_attendance_student_date on attendance(student_id, date);
+create index if not exists idx_student_achievements_student_date on student_achievements(student_id, achievement_date desc);
+create index if not exists idx_student_achievements_program_date on student_achievements(program_id, achievement_date desc);
 create index if not exists idx_fees_student_programme_month on fees(student_id, programme_id, month);
 create index if not exists idx_fee_payments_fee_id on fee_payments(fee_id);
 create index if not exists idx_testimonials_order on testimonials(display_order);
@@ -413,7 +431,7 @@ $$ language plpgsql;
 do $$
 declare t text;
 begin
-  foreach t in array array['users','students','programs','student_programs','masters',
+  foreach t in array array['users','students','programs','student_programs','student_achievements','masters',
     'student_registration_requests','contact_enquiries','achievements','gallery','announcements','events','branches',
     'testimonials','faqs','fees']
   loop
